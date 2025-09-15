@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="de" data-theme="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pfandkasse • Übersicht</title>
+  <meta name="color-scheme" content="dark light" />
+  <style>
+    :root{
+      --bg: #0b0e13;            /* dark base */
+      --bg-soft:#0f131a;        /* card bg */
+      --text:#e6e9ef;           /* primary text */
+      --muted:#9aa4b2;          /* secondary text */
+      --accent:#4ade80;         /* green */
+      --accent-weak:#1f3b2b;    /* green tint */
+      --danger:#f87171;         /* red (unused but ready) */
+      --ring: #2a3441;          /* subtle borders */
+      --shadow: 0 6px 24px rgba(0,0,0,.35), 0 2px 6px rgba(0,0,0,.25);
+    }
+    @media (prefers-color-scheme: light){
+      :root{ --bg:#f6f7fb; --bg-soft:#ffffff; --text:#0b0e13; --muted:#5b6470; --ring:#e8ebf1; --shadow: 0 8px 30px rgba(5,16,55,.06), 0 2px 8px rgba(5,16,55,.05);}  
+    }
+    [data-theme="light"]:root{ --bg:#f6f7fb; --bg-soft:#ffffff; --text:#0b0e13; --muted:#5b6470; --ring:#e8ebf1; --shadow: 0 8px 30px rgba(5,16,55,.06), 0 2px 8px rgba(5,16,55,.05);}  
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: var(--bg);
+      color: var(--text);
+      letter-spacing:.2px;
+    }
+    .container{max-width:1100px; margin-inline:auto; padding: 20px;}
+
+    /* Topbar */
+    .topbar{position:sticky; top:0; z-index:20; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      background: color-mix(in oklab, var(--bg) 86%, transparent);
+      border-bottom: 1px solid var(--ring);
+    }
+    .topbar-inner{display:flex; align-items:center; gap:12px; padding:14px 20px;}
+    .brand{display:flex; align-items:center; gap:10px; font-weight:700;}
+    .logo{width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg, var(--accent), #22c55e 60%); box-shadow: inset 0 0 0 2px color-mix(in oklab, black 8%, transparent);} 
+    .spacer{flex:1}
+    .chip{font-size:12px; color:var(--muted); border:1px solid var(--ring); padding:6px 10px; border-radius:999px;}
+    .toggle{appearance:none; border:1px solid var(--ring); background:var(--bg-soft); color:var(--text); border-radius:10px; padding:8px 12px; cursor:pointer}
+
+    /* Hero balance */
+    .hero{display:grid; grid-template-columns: 1fr; gap:16px; margin-top:18px;}
+    .card{background:var(--bg-soft); border:1px solid var(--ring); border-radius:18px; box-shadow: var(--shadow);} 
+    .card.pad{padding:20px}
+    .subtle{color:var(--muted)}
+
+    .balance{display:flex; flex-direction:column; gap:12px}
+    .balance-row{display:flex; align-items:flex-end; gap:12px}
+    .balance-amount{font-size: clamp(32px, 6vw, 54px); font-weight:800; line-height:1}
+    .tiny-up{display:inline-flex; align-items:center; gap:6px; font-size:12px; background:var(--accent-weak); color:var(--accent); border-radius:999px; padding:4px 8px}
+
+    /* Chart card */
+    .chart-wrap{display:flex; flex-direction:column; gap:14px}
+    canvas{width:100%; height:120px}
+
+    /* History */
+    .section-title{display:flex; align-items:center; justify-content:space-between; margin:22px 0 10px}
+    .list{display:flex; flex-direction:column}
+    .row{display:grid; grid-template-columns: 1fr auto auto; gap:12px; align-items:center; padding:14px 16px; border-bottom:1px dashed var(--ring)}
+    .row:last-child{border-bottom:none}
+    .pill{font:inherit; font-size:12px; padding:4px 8px; border-radius:999px; border:1px solid var(--ring); color:var(--muted)}
+    .amount{font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; font-weight:700}
+    .note{color:var(--muted)}
+    .empty{padding:36px; text-align:center; color:var(--muted)}
+
+    /* Footer */
+    footer{color:var(--muted); text-align:center; padding:24px 12px}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner container">
+      <div class="brand"><div class="logo" aria-hidden></div><span>Pfandkasse</span></div>
+      <span class="chip" id="asOf">—</span>
+      <div class="spacer"></div>
+      <button class="toggle" id="themeToggle" title="Hell/Dunkel umschalten">🌓</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <!-- Balance + chart -->
+      <div class="card pad">
+        <div class="balance">
+          <div class="subtle">Kontostand</div>
+          <div class="balance-row">
+            <div class="balance-amount" id="balance">—</div>
+            <span class="tiny-up" id="deltaTiny" hidden style="display:none">+0,00 € seit letztem Eintrag</span>
+          </div>
+          <div class="subtle" id="lastUpdate">—</div>
+        </div>
+        <div class="chart-wrap" style="margin-top:14px">
+          <canvas id="spark"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h3 style="margin:0">Historie</h3>
+        <span class="pill" id="rangeInfo">Letzte Einträge</span>
+      </div>
+      <div class="card">
+        <div id="history" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Pfandkasse • © <span id="year"></span>
+  </footer>
+
+  <script>
+    // --- Configuration ------------------------------------------------------
+    const HISTORY_LIMIT = 10;
+    const LOCALE = 'de-DE';
+    const EUR = new Intl.NumberFormat(LOCALE, { style: 'currency', currency: 'EUR' });
+    const DT = new Intl.DateTimeFormat(LOCALE, { dateStyle: 'medium', timeStyle: undefined });
+
+
+    const demoData = [
+      { date: "2025-09-12", amount: 4.75, note: "14 Dosen, 5 Flaschen" },
+      { date: "2025-09-16", amount: 0.50, note: "2 Dosen, 0 Flaschen" },
+    ];
+
+
+
+
+
+
+    async function loadData(){
+      try{
+        const res = await fetch('/data/pfandkasse.json', {cache:'no-store'});
+        if(!res.ok) throw new Error('No external data');
+        const data = await res.json();
+        if(!Array.isArray(data)) throw new Error('Invalid shape');
+        return data;
+      }catch(e){
+        return demoData;
+      }
+    }
+
+    // --- Rendering ----------------------------------------------------------
+    function computeStats(items){
+      const sorted = [...items].sort((a,b)=> new Date(a.date) - new Date(b.date));
+      const total = sorted.reduce((s,i)=> s + (Number(i.amount)||0), 0);
+      const last = sorted.at(-1);
+      const prev = sorted.at(-2);
+      const delta = last && prev ? (Number(last.amount) - Number(prev.amount)) : 0;
+      const avg = sorted.length ? total / sorted.length : 0;
+      const now = new Date();
+      const thisMonth = sorted.filter(i=>{ const d=new Date(i.date); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); })
+                               .reduce((s,i)=> s+Number(i.amount||0), 0);
+      return {sorted, total, last, prev, delta, avg, thisMonth};
+    }
+
+    function renderHeader(stats){
+      document.getElementById('balance').textContent = EUR.format(stats.total);
+      
+     
+      document.getElementById('asOf').textContent = 'Stand: ' + DT.format(new Date());
+      document.getElementById('lastUpdate').textContent = stats.last ? ('Letzter Eintrag: ' + DT.format(new Date(stats.last.date))) : 'Keine Einträge';
+      const deltaTiny = document.getElementById('deltaTiny');
+      if(stats.delta){ deltaTiny.hidden=false; deltaTiny.textContent = (stats.delta>=0?'+':'') + EUR.format(stats.delta) + ' seit letztem Eintrag'; }
+    }
+
+    function renderHistory(items){
+      const list = document.getElementById('history');
+      list.innerHTML = '';
+      if(!items.length){ list.innerHTML = '<div class="empty">Keine Einträge vorhanden.</div>'; return; }
+      const lastN = items.slice(-HISTORY_LIMIT).reverse();
+      document.getElementById('rangeInfo').textContent = `Letzte ${lastN.length} Einträge`;
+      for(const i of lastN){
+        const row = document.createElement('div');
+        row.className = 'row';
+        const left = document.createElement('div');
+        left.innerHTML = `<div><strong>${DT.format(new Date(i.date))}</strong></div><div class="note">${i.note ? escapeHtml(i.note) : ''}</div>`;
+        const mid = document.createElement('div');
+        mid.innerHTML = `<span class="pill">Einzahlung</span>`;
+        const amt = document.createElement('div');
+        amt.className = 'amount';
+        amt.textContent = EUR.format(Number(i.amount||0));
+        row.append(left, mid, amt);
+        list.appendChild(row);
+      }
+    }
+
+    function escapeHtml(str){
+      return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+    }
+
+    // --- Sparkline ----------------------------------------------------------
+    function renderSparkline(canvas, series){
+      const ctx = canvas.getContext('2d');
+      const dpr = Math.max(1, window.devicePixelRatio||1);
+      const W = canvas.clientWidth * dpr; const H = canvas.clientHeight * dpr;
+      canvas.width = W; canvas.height = H;
+      ctx.clearRect(0,0,W,H);
+      if(series.length < 2) return;
+      const xs = series.map((_,idx)=> idx/(series.length-1));
+      const ys = series.map(v=> v);
+      const min = Math.min(...ys), max = Math.max(...ys);
+      const pad = 8*dpr;
+      const yScale = (val)=>{
+        if(max===min) return H/2; 
+        return H - pad - ( (val-min)/(max-min) * (H - 2*pad) );
+      }
+      const xScale = (t)=> pad + t * (W - 2*pad);
+      // grid baseline
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ring').trim();
+      ctx.lineWidth = 1*dpr; ctx.setLineDash([4*dpr, 6*dpr]);
+      const baseY = yScale(ys.at(-1));
+      ctx.beginPath(); ctx.moveTo(pad, baseY); ctx.lineTo(W-pad, baseY); ctx.stroke(); ctx.setLineDash([]);
+      // line
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      ctx.lineWidth = 2.4*dpr; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(xScale(xs[0]), yScale(ys[0]));
+      for(let i=1;i<xs.length;i++) ctx.lineTo(xScale(xs[i]), yScale(ys[i]));
+      ctx.stroke();
+      // gradient fill
+      const grad = ctx.createLinearGradient(0, pad, 0, H-pad);
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      grad.addColorStop(0, hexToRgba(accent, .20));
+      grad.addColorStop(1, hexToRgba(accent, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(xScale(xs[0]), yScale(ys[0]));
+      for(let i=1;i<xs.length;i++) ctx.lineTo(xScale(xs[i]), yScale(ys[i]));
+      ctx.lineTo(xScale(xs.at(-1)), H-pad);
+      ctx.lineTo(xScale(xs[0]), H-pad);
+      ctx.closePath();
+      ctx.fill();
+    }
+    function hexToRgba(hex, a){
+      // handles #rgb, #rrggbb
+      const h = hex.replace('#','');
+      const to255 = (s)=> parseInt(s.repeat(6/s.length), 16);
+      const r = to255(h.length===3? h[0]: h.slice(0,2));
+      const g = to255(h.length===3? h[1]: h.slice(2,4));
+      const b = to255(h.length===3? h[2]: h.slice(4,6));
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    // --- Theme Toggle -------------------------------------------------------
+    (function initTheme(){
+      const btn = document.getElementById('themeToggle');
+      const saved = localStorage.getItem('pfand.theme');
+      if(saved){ document.documentElement.setAttribute('data-theme', saved); }
+      btn.addEventListener('click', ()=>{
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('pfand.theme', next);
+      });
+    })();
+
+    // --- Boot ---------------------------------------------------------------
+    (async function(){
+      document.getElementById('year').textContent = new Date().getFullYear();
+      const items = (await loadData()).filter(x=> typeof x.amount === 'number' && !Number.isNaN(x.amount));
+      const stats = computeStats(items);
+      renderHeader(stats);
+      renderHistory(stats.sorted);
+      // Build cumulative series for sparkline
+      const cum = [];
+      let s = 0; for(const i of stats.sorted){ s += Number(i.amount||0); cum.push(s); }
+      renderSparkline(document.getElementById('spark'), cum);
+      // Re-render sparkline on resize for crisp DPR
+      let rId; window.addEventListener('resize', ()=>{ cancelAnimationFrame(rId); rId=requestAnimationFrame(()=> renderSparkline(document.getElementById('spark'), cum)); });
+    })();
+  </script>
+</body>
+</html>
